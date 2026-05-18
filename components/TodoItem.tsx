@@ -207,7 +207,7 @@ export default function TodoItem({ todo, onToggle, onDelete, onEdit }: TodoItemP
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+          <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300">
             <button
               onClick={() => setIsEditing(true)}
               className="rounded-lg p-1.5 text-slate-400 hover:bg-white/5 hover:text-indigo-400 transition-all duration-200"

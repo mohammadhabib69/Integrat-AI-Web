@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Search,
   SlidersHorizontal,
@@ -13,6 +13,7 @@ import {
 import TodoItem, { Todo } from "./TodoItem";
 import TodoForm from "./TodoForm";
 import TodoStats from "./TodoStats";
+import { useCopilotReadable, useCopilotAction } from "@copilotkit/react-core";
 
 const LOCAL_STORAGE_KEY = "antigravity-premium-todos";
 
@@ -57,6 +58,13 @@ const DEFAULT_TODOS: Todo[] = [
 
 export default function TodoApp() {
   const [todos, setTodos] = useState<Todo[]>([]);
+
+  // Keep a ref of todos to avoid stale closures in CopilotKit action handlers
+  const todosRef = useRef<Todo[]>(todos);
+  useEffect(() => {
+    todosRef.current = todos;
+  }, [todos]);
+
   const [mounted, setMounted] = useState(false);
 
   // Filter & Search state
@@ -66,6 +74,292 @@ export default function TodoApp() {
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [sortBy, setSortBy] = useState<"newest" | "dueDate" | "priority">("newest");
   const [showFilters, setShowFilters] = useState(false);
+
+  // --- CopilotKit Real-time Reading Context ---
+  useCopilotReadable({
+    description: "The user's list of todo tasks. Each task has: id (string), text (string), completed (boolean), priority ('low' | 'medium' | 'high'), category (string), and optional dueDate (string, format YYYY-MM-DD).",
+    value: todos,
+  }, [todos]);
+
+  // --- CopilotKit AI Actions (Writing Context) ---
+  useCopilotAction({
+    name: "addTodo",
+    description: "Adds a new todo task to the todo list.",
+    parameters: [
+      {
+        name: "text",
+        type: "string",
+        description: "The description text of the todo task to be added.",
+        required: true,
+      },
+      {
+        name: "priority",
+        type: "string",
+        description: "The priority level of the task. Must be 'high', 'medium', or 'low'. Defaults to 'medium'.",
+        enum: ["high", "medium", "low"],
+        required: false,
+      },
+      {
+        name: "category",
+        type: "string",
+        description: "The category of the task (e.g. Work, Personal, Shopping, Health, Other). Defaults to 'Other'.",
+        required: false,
+      },
+      {
+        name: "dueDate",
+        type: "string",
+        description: "The optional due date of the task in YYYY-MM-DD format.",
+        required: false,
+      },
+    ],
+    handler: async ({ text, priority, category, dueDate }) => {
+      handleAddTodo(
+        text,
+        (priority as "low" | "medium" | "high") || "medium",
+        category || "Other",
+        dueDate
+      );
+    },
+  }, []);
+
+  useCopilotAction({
+    name: "toggleTodo",
+    description: "Toggles the completed status of a todo task (marks a completed task as active, or an active task as completed).",
+    parameters: [
+      {
+        name: "id",
+        type: "string",
+        description: "The unique ID of the todo task to toggle.",
+        required: false,
+      },
+      {
+        name: "textQuery",
+        type: "string",
+        description: "An optional search text query to find the task to toggle if the ID is not explicitly known.",
+        required: false,
+      },
+    ],
+    handler: async ({ id, textQuery }) => {
+      let targetId = id;
+      if (!targetId && textQuery) {
+        const found = todosRef.current.find((t) =>
+          t.text.toLowerCase().includes(textQuery.toLowerCase())
+        );
+        if (found) targetId = found.id;
+      }
+      if (targetId) {
+        handleToggleTodo(targetId);
+      }
+    },
+  }, []);
+
+  useCopilotAction({
+    name: "deleteTodo",
+    description: "Removes or deletes a todo task from the list.",
+    parameters: [
+      {
+        name: "id",
+        type: "string",
+        description: "The unique ID of the todo task to delete.",
+        required: false,
+      },
+      {
+        name: "textQuery",
+        type: "string",
+        description: "An optional search text query to find the task to delete if the ID is not explicitly known.",
+        required: false,
+      },
+    ],
+    handler: async ({ id, textQuery }) => {
+      let targetId = id;
+      if (!targetId && textQuery) {
+        const found = todosRef.current.find((t) =>
+          t.text.toLowerCase().includes(textQuery.toLowerCase())
+        );
+        if (found) targetId = found.id;
+      }
+      if (targetId) {
+        handleDeleteTodo(targetId);
+      }
+    },
+  }, []);
+
+  useCopilotAction({
+    name: "deleteTodos",
+    description: "Removes or deletes multiple todo tasks from the list based on status (e.g. active, completed, or all), category, priority, or search text.",
+    parameters: [
+      {
+        name: "status",
+        type: "string",
+        description: "Optional status to filter by. Can be 'active' (to delete only incomplete tasks), 'completed' (to delete only completed tasks), or 'all' (to delete all tasks).",
+        enum: ["active", "completed", "all"],
+        required: false,
+      },
+      {
+        name: "category",
+        type: "string",
+        description: "Optional category to filter by (e.g. Work, Personal, Shopping, Health, Other). Tasks matching this category will be deleted.",
+        required: false,
+      },
+      {
+        name: "priority",
+        type: "string",
+        description: "Optional priority to filter by ('high', 'medium', 'low'). Tasks matching this priority will be deleted.",
+        enum: ["high", "medium", "low"],
+        required: false,
+      },
+      {
+        name: "textQuery",
+        type: "string",
+        description: "Optional search text query. Tasks containing this text in their description will be deleted.",
+        required: false,
+      },
+    ],
+    handler: async ({ status, category, priority, textQuery }) => {
+      setTodos((prev) => {
+        // If no parameters are provided at all, do nothing to prevent accidental deletions
+        if (!status && !category && !priority && !textQuery) {
+          return prev;
+        }
+
+        return prev.filter((todo) => {
+          let matchesCriteria = true;
+
+          if (status) {
+            if (status === "active" && todo.completed) matchesCriteria = false;
+            if (status === "completed" && !todo.completed) matchesCriteria = false;
+            // 'all' matches everything
+          }
+          if (category && todo.category.toLowerCase() !== category.toLowerCase()) {
+            matchesCriteria = false;
+          }
+          if (priority && todo.priority !== priority) {
+            matchesCriteria = false;
+          }
+          if (textQuery && !todo.text.toLowerCase().includes(textQuery.toLowerCase())) {
+            matchesCriteria = false;
+          }
+
+          // If it matches all specified criteria, delete it (filter it out by returning false)
+          return !matchesCriteria;
+        });
+      });
+    },
+  }, []);
+
+  useCopilotAction({
+    name: "editTodo",
+    description: "Edits or updates an existing todo task's text, priority, category, or due date.",
+    parameters: [
+      {
+        name: "id",
+        type: "string",
+        description: "The unique ID of the todo task to edit.",
+        required: false,
+      },
+      {
+        name: "textQuery",
+        type: "string",
+        description: "An optional search text query to find the task to edit if the ID is not explicitly known.",
+        required: false,
+      },
+      {
+        name: "newText",
+        type: "string",
+        description: "The updated description text for the task.",
+        required: false,
+      },
+      {
+        name: "newPriority",
+        type: "string",
+        description: "The updated priority level for the task. Must be 'high', 'medium', or 'low'.",
+        enum: ["high", "medium", "low"],
+        required: false,
+      },
+      {
+        name: "newCategory",
+        type: "string",
+        description: "The updated category for the task.",
+        required: false,
+      },
+      {
+        name: "newDueDate",
+        type: "string",
+        description: "The updated due date in YYYY-MM-DD format.",
+        required: false,
+      },
+    ],
+    handler: async ({ id, textQuery, newText, newPriority, newCategory, newDueDate }) => {
+      let targetTodo = todosRef.current.find((t) => t.id === id);
+      if (!targetTodo && textQuery) {
+        targetTodo = todosRef.current.find((t) =>
+          t.text.toLowerCase().includes(textQuery.toLowerCase())
+        );
+      }
+      if (targetTodo) {
+        handleEditTodo(
+          targetTodo.id,
+          newText !== undefined ? newText : targetTodo.text,
+          (newPriority as "low" | "medium" | "high") !== undefined
+            ? (newPriority as "low" | "medium" | "high")
+            : targetTodo.priority,
+          newCategory !== undefined ? newCategory : targetTodo.category,
+          newDueDate !== undefined ? newDueDate : targetTodo.dueDate
+        );
+      }
+    },
+  }, []);
+
+  useCopilotAction({
+    name: "clearCompletedTodos",
+    description: "Clears or deletes all completed tasks from the list.",
+    parameters: [],
+    handler: async () => {
+      handleClearCompleted();
+    },
+  }, []);
+
+  useCopilotAction({
+    name: "setFiltersAndSearch",
+    description: "Sets the search text filter, status filters, category filter, or priority filter in the UI.",
+    parameters: [
+      {
+        name: "searchText",
+        type: "string",
+        description: "Search text query to match task content. Pass empty string to clear.",
+        required: false,
+      },
+      {
+        name: "status",
+        type: "string",
+        description: "Filter by status: 'all', 'active', or 'completed'.",
+        enum: ["all", "active", "completed"],
+        required: false,
+      },
+      {
+        name: "category",
+        type: "string",
+        description: "Filter by category (e.g. Work, Personal, Shopping, Health, Other, or 'all').",
+        required: false,
+      },
+      {
+        name: "priority",
+        type: "string",
+        description: "Filter by priority level ('high', 'medium', 'low', or 'all').",
+        enum: ["high", "medium", "low", "all"],
+        required: false,
+      },
+    ],
+    handler: async ({ searchText, status, category, priority }) => {
+      if (searchText !== undefined) setSearch(searchText);
+      if (status !== undefined) setStatusFilter(status as "all" | "active" | "completed");
+      if (category !== undefined) setCategoryFilter(category);
+      if (priority !== undefined) setPriorityFilter(priority);
+      if ((category !== undefined && category !== "all") || (priority !== undefined && priority !== "all")) {
+        setShowFilters(true);
+      }
+    },
+  }, []);
 
   // Load from local storage
   useEffect(() => {
@@ -295,10 +589,10 @@ export default function TodoApp() {
             {/* Collapsible Advanced Filters Row */}
             <div
               className={`overflow-hidden transition-all duration-300 ease-in-out ${
-                showFilters ? "max-h-24 opacity-100" : "max-h-0 opacity-0 pointer-events-none"
+                showFilters ? "max-h-48 sm:max-h-24 opacity-100" : "max-h-0 opacity-0 pointer-events-none"
               }`}
             >
-              <div className="grid grid-cols-2 gap-4 rounded-xl border border-white/5 bg-white/[0.01] p-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 rounded-xl border border-white/5 bg-white/[0.01] p-4">
                 
                 {/* Filter by Category */}
                 <div className="space-y-1">

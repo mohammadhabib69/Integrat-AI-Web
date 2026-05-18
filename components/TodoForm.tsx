@@ -65,17 +65,17 @@ export default function TodoForm({ onAdd }: TodoFormProps) {
       {/* Advanced Settings Drawer */}
       <div
         className={`overflow-hidden transition-all duration-300 ease-in-out ${
-          showAdvanced ? "max-h-48 opacity-100 py-2" : "max-h-0 opacity-0"
+          showAdvanced ? "max-h-80 opacity-100 py-2" : "max-h-0 opacity-0"
         }`}
       >
-        <div className="grid grid-cols-1 gap-4 rounded-xl border border-white/5 bg-white/[0.01] p-4 sm:grid-cols-3">
-          {/* Priority */}
-          <div className="space-y-1">
+        <div className="rounded-xl border border-white/5 bg-white/[0.01] p-4 space-y-4">
+          {/* Priority (Full Width) */}
+          <div className="space-y-1.5">
             <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-400">
               <AlertCircle className="h-3.5 w-3.5" />
               Priority
             </label>
-            <div className="flex gap-1.5 mt-1.5">
+            <div className="flex gap-2 mt-1">
               {(["low", "medium", "high"] as const).map((p) => {
                 return (
                   <button
@@ -99,37 +99,40 @@ export default function TodoForm({ onAdd }: TodoFormProps) {
             </div>
           </div>
 
-          {/* Category */}
-          <div className="space-y-1.5">
-            <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-400">
-              <Tag className="h-3.5 w-3.5" />
-              Category
-            </label>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs text-white focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500/50"
-            >
-              {categories.map((cat) => (
-                <option key={cat} value={cat} className="bg-slate-900 text-slate-300">
-                  {cat}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Category & Due Date (2-Column Grid) */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {/* Category */}
+            <div className="space-y-1.5">
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-400">
+                <Tag className="h-3.5 w-3.5" />
+                Category
+              </label>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs text-white focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500/50"
+              >
+                {categories.map((cat) => (
+                  <option key={cat} value={cat} className="bg-slate-900 text-slate-300">
+                    {cat}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          {/* Due Date */}
-          <div className="space-y-1.5">
-            <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-400">
-              <Calendar className="h-3.5 w-3.5" />
-              Due Date
-            </label>
-            <input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-1.5 text-xs text-white focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500/50"
-            />
+            {/* Due Date */}
+            <div className="space-y-1.5">
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-400">
+                <Calendar className="h-3.5 w-3.5" />
+                Due Date
+              </label>
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-1.5 text-xs text-white focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500/50"
+              />
+            </div>
           </div>
         </div>
       </div>
