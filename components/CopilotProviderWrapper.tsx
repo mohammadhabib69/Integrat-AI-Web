@@ -4,7 +4,6 @@ import React, { useState, useEffect } from "react";
 import { CopilotKit } from "@copilotkit/react-core";
 import { CopilotPopup } from "@copilotkit/react-ui";
 import { AlertCircle, X, ShieldAlert } from "lucide-react";
-import "@copilotkit/react-ui/styles.css";
 
 export default function CopilotProviderWrapper({
   children,
